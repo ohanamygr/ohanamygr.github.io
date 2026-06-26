@@ -1,0 +1,609 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Risk Radar — Programme Risk Console</title>
+<style>
+  :root{
+    --bg:#0E1116; --panel:#151A21; --panel2:#1A212C; --raised:#1E2733;
+    --line:#242E3A; --line2:#2E3A48;
+    --ink:#E9EEF5; --dim:#9AA7B6; --faint:#62707F;
+    --p1:#FF5D5D; --p1b:rgba(255,93,93,.13); --p1e:rgba(255,93,93,.45);
+    --p2:#F6B24C; --p2b:rgba(246,178,76,.13); --p2e:rgba(246,178,76,.4);
+    --p3:#2FD587; --p3b:rgba(47,213,135,.13); --p3e:rgba(47,213,135,.4);
+    --cyan:#49E3CB; --cyanb:rgba(73,227,203,.12);
+    --sans:ui-sans-serif,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --mono:ui-monospace,"SF Mono","JetBrains Mono","Cascadia Code",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    background:
+      radial-gradient(900px 500px at 85% -10%, rgba(73,227,203,.06), transparent 60%),
+      radial-gradient(700px 400px at -5% 0%, rgba(255,93,93,.05), transparent 55%),
+      var(--bg);
+    color:var(--ink); font-family:var(--sans); line-height:1.5;
+    -webkit-font-smoothing:antialiased; padding-bottom:64px;
+  }
+  .wrap{max-width:1120px; margin:0 auto; padding:0 22px}
+
+  /* ---- command bar ---- */
+  .bar{position:sticky; top:0; z-index:40; backdrop-filter:blur(8px);
+    background:linear-gradient(180deg,rgba(14,17,22,.96),rgba(14,17,22,.82));
+    border-bottom:1px solid var(--line)}
+  .bar .wrap{display:flex; align-items:center; gap:18px; padding-top:14px; padding-bottom:14px; flex-wrap:wrap}
+  .brand{display:flex; align-items:baseline; gap:12px; margin-right:auto}
+  .eyebrow{font-family:var(--mono); font-size:10.5px; letter-spacing:.28em; text-transform:uppercase; color:var(--faint)}
+  .logo{font-size:22px; font-weight:800; letter-spacing:-.02em; display:flex; align-items:center; gap:9px}
+  .logo .scope{position:relative; width:15px; height:15px; border-radius:50%; border:1.5px solid var(--cyan);
+    box-shadow:0 0 0 3px rgba(73,227,203,.1)}
+  .logo .scope::after{content:""; position:absolute; inset:1px; border-radius:50%;
+    background:conic-gradient(from 0deg, rgba(73,227,203,.55), transparent 70%); animation:spin 3.6s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .mode{display:flex; align-items:center; gap:7px; font-family:var(--mono); font-size:11px; color:var(--dim);
+    padding:5px 10px; border:1px solid var(--line2); border-radius:999px; background:var(--panel)}
+  .pulse{width:7px; height:7px; border-radius:50%; background:var(--p3); box-shadow:0 0 0 0 rgba(47,213,135,.5); animation:pulse 1.8s infinite}
+  .mode.live .pulse{background:var(--cyan); box-shadow:0 0 0 0 rgba(73,227,203,.5)}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(47,213,135,.45)}70%{box-shadow:0 0 0 7px rgba(47,213,135,0)}100%{box-shadow:0 0 0 0 rgba(47,213,135,0)}}
+  .btn{font-family:var(--sans); font-size:13px; font-weight:600; color:var(--ink); cursor:pointer;
+    border:1px solid var(--line2); background:var(--raised); border-radius:9px; padding:9px 14px; display:inline-flex; align-items:center; gap:8px}
+  .btn:hover{border-color:var(--cyan); color:#fff}
+  .btn.primary{background:linear-gradient(180deg,#23E0C6,#16B49E); color:#06231F; border-color:transparent; font-weight:700}
+  .btn.primary:hover{filter:brightness(1.06)}
+  .btn.ghost{background:transparent}
+  .icon{width:16px; height:16px; display:inline-block}
+
+  .sub{padding:18px 0 2px}
+  .sub .wrap{display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap}
+  .prog{font-size:13px; color:var(--dim)}
+  .prog b{color:var(--ink); font-weight:700}
+  .swept{font-family:var(--mono); font-size:11px; color:var(--faint)}
+
+  /* ---- KPI strip ---- */
+  .kpis{display:flex; gap:12px; margin:16px 0 6px; flex-wrap:wrap}
+  .kpi{flex:1 1 150px; min-width:140px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 16px; position:relative; overflow:hidden; cursor:pointer}
+  .kpi:hover{border-color:var(--line2)}
+  .kpi.active{border-color:var(--cyan)}
+  .kpi .n{font-size:30px; font-weight:800; line-height:1; font-variant-numeric:tabular-nums}
+  .kpi .l{font-size:11px; color:var(--dim); margin-top:7px; letter-spacing:.02em}
+  .kpi .edge{position:absolute; left:0; top:0; bottom:0; width:3px}
+  .kpi.p1 .n{color:var(--p1)} .kpi.p1 .edge{background:var(--p1)}
+  .kpi.p2 .n{color:var(--p2)} .kpi.p2 .edge{background:var(--p2)}
+  .kpi.p3 .n{color:var(--p3)} .kpi.p3 .edge{background:var(--p3)}
+  .kpi.neutral .n{color:var(--ink)} .kpi.neutral .edge{background:var(--line2)}
+  .kpi.flag .n{color:var(--cyan)} .kpi.flag .edge{background:var(--cyan)}
+
+  .sech{font-family:var(--mono); font-size:11px; letter-spacing:.22em; text-transform:uppercase; color:var(--faint); margin:26px 0 11px; display:flex; align-items:center; gap:10px}
+  .sech::after{content:""; flex:1; height:1px; background:var(--line)}
+
+  /* ---- RAG rail ---- */
+  .rag{display:flex; gap:10px; flex-wrap:wrap}
+  .chip{display:flex; align-items:center; gap:10px; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:9px 13px; flex:1 1 320px; min-width:280px}
+  .dot{width:9px; height:9px; border-radius:50%; flex:none}
+  .chip .ws{font-weight:700; font-size:13px; white-space:nowrap}
+  .chip .rs{font-size:12px; color:var(--dim); border-left:1px solid var(--line2); padding-left:10px}
+  .dot.red{background:var(--p1); box-shadow:0 0 8px var(--p1e)}
+  .dot.amber{background:var(--p2); box-shadow:0 0 8px var(--p2e)}
+  .dot.green{background:var(--p3); box-shadow:0 0 8px var(--p3e)}
+
+  /* ---- filters ---- */
+  .filters{display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:12px}
+  .seg{display:inline-flex; background:var(--panel); border:1px solid var(--line); border-radius:9px; padding:3px}
+  .seg button{font-family:var(--sans); font-size:12px; font-weight:600; color:var(--dim); background:transparent; border:0; border-radius:6px; padding:6px 11px; cursor:pointer}
+  .seg button.on{background:var(--raised); color:var(--ink)}
+  .search{flex:1 1 200px; min-width:160px}
+  .search input{width:100%; font-family:var(--mono); font-size:12px; color:var(--ink); background:var(--panel); border:1px solid var(--line); border-radius:9px; padding:9px 12px}
+  .search input::placeholder{color:var(--faint)}
+  .search input:focus{outline:none; border-color:var(--cyan)}
+
+  /* ---- radar list ---- */
+  #scan{position:relative}
+  .scanline{position:absolute; left:0; right:0; height:2px; pointer-events:none; z-index:5;
+    background:linear-gradient(90deg,transparent,var(--cyan),transparent); box-shadow:0 0 16px var(--cyan); opacity:0}
+  .row{position:relative; background:var(--panel); border:1px solid var(--line); border-radius:12px; margin-bottom:10px; overflow:hidden}
+  .row.hide{opacity:0; transform:translateY(8px)}
+  .row{transition:opacity .35s ease, transform .35s ease, border-color .15s}
+  .row:hover{border-color:var(--line2)}
+  .rail{position:absolute; left:0; top:0; bottom:0; width:4px}
+  .row.p1 .rail{background:var(--p1); box-shadow:0 0 14px var(--p1e)}
+  .row.p2 .rail{background:var(--p2); box-shadow:0 0 14px var(--p2e)}
+  .row.p3 .rail{background:var(--p3); box-shadow:0 0 12px var(--p3e)}
+  .rhead{display:grid; grid-template-columns:54px 1fr auto; gap:14px; align-items:center; padding:13px 16px 13px 18px; cursor:pointer}
+  .pri{font-family:var(--mono); font-weight:800; font-size:14px; text-align:center; padding:4px 0; border-radius:7px}
+  .row.p1 .pri{color:var(--p1); background:var(--p1b)}
+  .row.p2 .pri{color:var(--p2); background:var(--p2b)}
+  .row.p3 .pri{color:var(--p3); background:var(--p3b)}
+  .mid .top{display:flex; align-items:center; gap:9px; flex-wrap:wrap; margin-bottom:5px}
+  .ws{font-weight:700; font-size:14px}
+  .tag{font-family:var(--mono); font-size:10px; letter-spacing:.06em; text-transform:uppercase; padding:3px 7px; border-radius:6px; border:1px solid var(--line2); color:var(--dim)}
+  .tag.type{color:var(--ink); border-color:var(--line2); background:var(--raised)}
+  .tag.state{color:var(--cyan); border-color:rgba(73,227,203,.3); background:var(--cyanb)}
+  .tag.tp{color:var(--p2)} .tag.go{color:var(--p1)}
+  .trig{font-family:var(--mono); font-size:12.5px; color:var(--dim)}
+  .trig .q{color:var(--ink)}
+  .sev{display:flex; flex-direction:column; align-items:flex-end; gap:4px; min-width:78px}
+  .sev .s{font-family:var(--mono); font-size:12px; font-weight:700}
+  .row.p1 .sev .s{color:var(--p1)} .row.p2 .sev .s{color:var(--p2)} .row.p3 .sev .s{color:var(--p3)}
+  .sev .c{font-size:10px; color:var(--faint)}
+  .chev{color:var(--faint); transition:transform .2s; margin-left:2px}
+  .row.open .chev{transform:rotate(90deg)}
+  .rbody{display:none; padding:0 18px 16px 18px; border-top:1px solid var(--line)}
+  .row.open .rbody{display:block}
+  .kv{display:grid; grid-template-columns:120px 1fr; gap:6px 14px; margin-top:13px; font-size:13px}
+  .kv .k{font-family:var(--mono); font-size:11px; color:var(--faint); text-transform:uppercase; letter-spacing:.06em; padding-top:1px}
+  .kv .v{color:var(--ink)}
+  .srcs{display:flex; gap:6px; flex-wrap:wrap}
+  .src{font-family:var(--mono); font-size:11px; color:var(--cyan); border:1px solid rgba(73,227,203,.25); background:var(--cyanb); border-radius:6px; padding:2px 7px; cursor:pointer}
+  .src:hover{background:rgba(73,227,203,.2)}
+
+  /* ---- digest ---- */
+  .digest{background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:6px 8px}
+  .digest li{list-style:none; display:flex; gap:12px; padding:11px 12px; border-bottom:1px solid var(--line)}
+  .digest li:last-child{border-bottom:0}
+  .digest .num{font-family:var(--mono); font-size:12px; color:var(--cyan); font-weight:700; flex:none; width:18px}
+  .digest .tx{font-size:13.5px; color:var(--ink)}
+  ul.digest{margin:0; padding-left:0}
+
+  /* ---- input drawer ---- */
+  .drawer{margin-top:10px; background:var(--panel); border:1px solid var(--line); border-radius:12px; overflow:hidden}
+  .drawer summary{cursor:pointer; list-style:none; padding:13px 16px; font-family:var(--mono); font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--dim); display:flex; align-items:center; gap:10px}
+  .drawer summary::-webkit-details-marker{display:none}
+  .drawer[open] summary{border-bottom:1px solid var(--line); color:var(--ink)}
+  .updates{max-height:340px; overflow:auto}
+  .upd{display:grid; grid-template-columns:54px 78px 96px 1fr; gap:12px; padding:9px 16px; border-bottom:1px solid var(--line); font-size:12px}
+  .upd:last-child{border-bottom:0}
+  .upd.hl{background:var(--cyanb)}
+  .upd .id{font-family:var(--mono); color:var(--cyan)}
+  .upd .dt{font-family:var(--mono); color:var(--faint)}
+  .upd .sr{font-family:var(--mono); color:var(--dim)}
+  .upd .tx{color:var(--ink)}
+
+  /* ---- settings popover ---- */
+  .pop{position:fixed; inset:0; z-index:60; display:none; align-items:flex-start; justify-content:center; background:rgba(4,6,9,.6); padding:80px 18px}
+  .pop.show{display:flex}
+  .card{width:480px; max-width:100%; background:var(--panel2); border:1px solid var(--line2); border-radius:16px; padding:22px; box-shadow:0 30px 80px rgba(0,0,0,.5)}
+  .card h3{margin:0 0 4px; font-size:16px}
+  .card p{margin:0 0 16px; font-size:12.5px; color:var(--dim)}
+  .field{margin-bottom:14px}
+  .field label{display:block; font-family:var(--mono); font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--faint); margin-bottom:6px}
+  .field input,.field select{width:100%; font-family:var(--mono); font-size:13px; color:var(--ink); background:var(--bg); border:1px solid var(--line2); border-radius:9px; padding:10px 12px}
+  .field input:focus,.field select:focus{outline:none; border-color:var(--cyan)}
+  .hint{font-size:11.5px; color:var(--faint); margin-top:6px}
+  .hint a{color:var(--cyan)}
+  .cardfoot{display:flex; gap:10px; justify-content:flex-end; margin-top:6px}
+
+  /* ---- toast ---- */
+  .toast{position:fixed; left:50%; bottom:26px; transform:translateX(-50%) translateY(20px); z-index:80;
+    background:var(--raised); border:1px solid var(--line2); border-radius:10px; padding:11px 16px; font-size:13px; opacity:0; transition:.25s; max-width:90vw}
+  .toast.show{opacity:1; transform:translateX(-50%) translateY(0)}
+  .toast.err{border-color:var(--p1); color:#ffd9d9}
+  .toast.ok{border-color:var(--p3)}
+
+  footer{margin-top:30px; padding-top:18px; border-top:1px solid var(--line); display:flex; gap:14px; align-items:center; flex-wrap:wrap}
+  footer .note{font-size:11.5px; color:var(--faint); margin-right:auto}
+
+  @media (max-width:640px){
+    .rhead{grid-template-columns:46px 1fr; }
+    .sev{display:none}
+    .kv{grid-template-columns:1fr}
+    .upd{grid-template-columns:48px 1fr; }
+    .upd .dt,.upd .sr{display:none}
+  }
+  @media (prefers-reduced-motion:reduce){
+    .logo .scope::after{animation:none}
+    .pulse{animation:none}
+    .row{transition:none}
+  }
+</style>
+</head>
+<body>
+
+<div class="bar">
+  <div class="wrap">
+    <div class="brand">
+      <div>
+        <div class="eyebrow">Programme Risk Console</div>
+        <div class="logo"><span class="scope"></span>Risk&nbsp;Radar</div>
+      </div>
+    </div>
+    <div id="modeBadge" class="mode"><span class="pulse"></span><span id="modeText">sample analysis</span></div>
+    <button class="btn ghost" id="gear" title="Live mode settings">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-2.7 1.1V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 7 19.4a1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0-1.1-2.7H1a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 2.6 7a1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H7a1.6 1.6 0 0 0 1-1.5V1a2 2 0 1 1 4 0v.1A1.6 1.6 0 0 0 17 2.6a1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V7a1.6 1.6 0 0 0 1.5 1H23a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/></svg>
+      Live
+    </button>
+    <button class="btn primary" id="sweep">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/><circle cx="12" cy="12" r="6"/></svg>
+      Run sweep
+    </button>
+  </div>
+</div>
+
+<div class="sub"><div class="wrap">
+  <div class="prog">Programme: <b id="progName">In-Ride Tipping + Instant Captain Payout</b> · UAE → KSA · Rides Product</div>
+  <div class="swept">last swept <span id="sweptAt">1 Jun 2026</span> · <span id="updCount">32</span> updates</div>
+</div></div>
+
+<div class="wrap">
+
+  <div class="kpis" id="kpis">
+    <div class="kpi p1" data-f="P1"><div class="edge"></div><div class="n" id="kP1">0</div><div class="l">P1 · launch-threatening</div></div>
+    <div class="kpi p2" data-f="P2"><div class="edge"></div><div class="n" id="kP2">0</div><div class="l">P2 · significant</div></div>
+    <div class="kpi p3" data-f="P3"><div class="edge"></div><div class="n" id="kP3">0</div><div class="l">P3 · minor</div></div>
+    <div class="kpi flag" data-f="ALL"><div class="edge"></div><div class="n" id="kFlag">0</div><div class="l">signals on radar</div></div>
+    <div class="kpi neutral" data-f="ALL"><div class="edge"></div><div class="n" id="kDec">0</div><div class="l">decisions needed this week</div></div>
+  </div>
+
+  <div class="sech">RAG by workstream</div>
+  <div class="rag" id="rag"></div>
+
+  <div class="sech">Risk radar — triaged</div>
+  <div class="filters">
+    <div class="seg" id="segPri">
+      <button data-f="ALL" class="on">All</button>
+      <button data-f="P1">P1</button>
+      <button data-f="P2">P2</button>
+      <button data-f="P3">P3</button>
+    </div>
+    <div class="seg" id="segType">
+      <button data-t="ALL" class="on">All types</button>
+      <button data-t="RISK">Risk</button>
+      <button data-t="BLOCKER">Blocker</button>
+      <button data-t="DEPENDENCY">Dependency</button>
+    </div>
+    <div class="search"><input id="q" placeholder="filter by workstream, trigger, action…" /></div>
+  </div>
+
+  <div id="scan">
+    <div class="scanline" id="scanline"></div>
+    <div id="radar"></div>
+  </div>
+
+  <details class="drawer" id="drawer">
+    <summary>▸ Input stream — raw updates the radar reads (<span id="drCount">32</span>)</summary>
+    <div class="updates" id="updates"></div>
+  </details>
+
+  <div class="sech">Executive digest</div>
+  <ul class="digest" id="digest"></ul>
+
+  <footer>
+    <span class="note">Demo loads a pre-computed sample analysis. Add a free Gemini key (Live) to run the real model on the same data.</span>
+    <button class="btn ghost" id="copyJson">Copy JSON</button>
+    <button class="btn ghost" id="dlJson">Download JSON</button>
+  </footer>
+</div>
+
+<!-- settings popover -->
+<div class="pop" id="pop">
+  <div class="card">
+    <h3>Run Risk Radar live</h3>
+    <p>The model reads all 32 updates and returns the radar as structured JSON, rendered below. The key is used only in your browser for this call — nothing is stored or sent anywhere else.</p>
+    <div class="field">
+      <label>Gemini API key</label>
+      <input id="apiKey" type="password" placeholder="AIza…" autocomplete="off" />
+      <div class="hint">Free key from <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener">aistudio.google.com</a>.</div>
+    </div>
+    <div class="field">
+      <label>Model</label>
+      <select id="model">
+        <option value="gemini-1.5-flash">gemini-1.5-flash (fast, free tier)</option>
+        <option value="gemini-1.5-pro">gemini-1.5-pro</option>
+      </select>
+    </div>
+    <div class="cardfoot">
+      <button class="btn ghost" id="closePop">Cancel</button>
+      <button class="btn primary" id="runLive">Run live analysis</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============================ DATA ============================ */
+const UPDATES = [
+ ["U001","2026-04-13","Standup","A.Khan","Payments","Kicked off integration with the new payments provider sandbox. Docs are thin but we have a vendor contact."],
+ ["U002","2026-04-15","Jira","system","Payments","RIDE-1042 Instant Payout API integration moved to In Progress. Depends on KYC verification service (RIDE-0911)."],
+ ["U003","2026-04-16","Slack","M.Yusuf","Identity/KYC","Heads up: KYC vendor renewal is stuck in legal. If it is not signed by 30 Apr we lose sandbox access."],
+ ["U004","2026-04-17","Standup","L.Petrova","Maps SDK","Maps SDK v3 upgrade going smoothly, on track for next sprint."],
+ ["U005","2026-04-20","Status","PMO","Payments","Payments provider sandbox returned 429 rate-limit errors during load test. Throughput about 30% of target."],
+ ["U006","2026-04-21","Slack","A.Khan","Payments","Provider says sandbox rate limits are by design; production limits are TBD, waiting on their solutions engineer."],
+ ["U007","2026-04-22","Jira","system","QA","RIDE-1101 E2E test environment unstable, payouts intermittently failing. Not reproducible locally."],
+ ["U008","2026-04-23","Standup","R.Aziz","Captain App","Captain payout UI mostly done, waiting on final API contract from Payments before we lock the schema."],
+ ["U009","2026-04-24","Retro","Team","QA","Velocity dipped this sprint; two devs were pulled into an incident on the live Rides service."],
+ ["U010","2026-04-27","Email","Vendor","Payments","Provider notifies a planned 3-week migration of their settlement API starting 11 May; old endpoints will be deprecated."],
+ ["U011","2026-04-28","Slack","M.Yusuf","Identity/KYC","KYC renewal STILL in legal. Escalated to procurement. This is now blocking sandbox access by end of week."],
+ ["U012","2026-04-29","Standup","L.Petrova","Maps SDK","Maps SDK v3 done and merged. Closing it out."],
+ ["U013","2026-04-30","Status","PMO","Data/Reporting","Reporting workstream not started; analyst is still allocated to another program until mid-May."],
+ ["U014","2026-05-04","Jira","system","Payments","RIDE-1042 blocked: KYC sandbox access revoked, vendor contract lapsed."],
+ ["U015","2026-05-05","Slack","A.Khan","Payments","Cannot progress payout integration without KYC. Effectively stalled."],
+ ["U016","2026-05-06","Standup","S.Idris","Ops/Launch","We still do not have a confirmed go/no-go date for UAE. Marketing is asking."],
+ ["U017","2026-05-07","Retro","Team","QA","Test env still flaky. Suspect shared staging DB contention with another team."],
+ ["U018","2026-05-08","Email","Legal","Identity/KYC","KYC vendor contract signed. Sandbox access restored."],
+ ["U019","2026-05-11","Slack","A.Khan","Payments","Provider settlement API migration started today as warned. Our integration points at the old endpoints; we must repoint before deprecation."],
+ ["U020","2026-05-12","Standup","R.Aziz","Captain App","Got the final API contract, locking the schema. Payout UI on track."],
+ ["U021","2026-05-13","Jira","system","Payments","RIDE-1042 unblocked, back to In Progress."],
+ ["U022","2026-05-14","Status","PMO","QA","QA staging contention unresolved; raised with Platform team, no owner assigned yet."],
+ ["U023","2026-05-15","Slack","S.Idris","Ops/Launch","Compliance review for instant payouts in KSA may take 4-6 weeks; UAE is unaffected."],
+ ["U024","2026-05-18","Standup","A.Khan","Payments","Repointed to the new settlement endpoints. Smoke tests pass."],
+ ["U025","2026-05-19","Jira","system","QA","RIDE-1101 still intermittently failing in staging. 3rd week running."],
+ ["U026","2026-05-20","Retro","Team","Data/Reporting","Reporting analyst now onboarded but the data contract from Payments is undocumented."],
+ ["U027","2026-05-21","Slack","S.Idris","Ops/Launch","Need a rollback plan documented before go-live; we have no rollback triggers defined for payout failures."],
+ ["U028","2026-05-22","Status","PMO","Payments","Production rate limits from provider confirmed at 50 TPS, below our peak of about 80 TPS at surge. Mitigation needed."],
+ ["U029","2026-05-26","Standup","R.Aziz","Captain App","Captain app payout flow feature-complete. Pending end-to-end sign-off."],
+ ["U030","2026-05-27","Slack","A.Khan","Payments","Proposed request queueing and backoff to stay under 50 TPS; needs review."],
+ ["U031","2026-05-28","Jira","system","QA","Platform team assigned an owner for the staging contention. ETA 1 week."],
+ ["U032","2026-06-01","Status","PMO","Ops/Launch","UAE go-live targeted 22 Jun pending: rollback plan, TPS mitigation sign-off, and final E2E sign-off."]
+].map(r=>({update_id:r[0],date:r[1],source:r[2],author:r[3],workstream:r[4],text:r[5]}));
+
+const SAMPLE = {
+  programme:"In-Ride Tipping + Instant Captain Payout",
+  swept_at:"1 Jun 2026",
+  decisions:2,
+  rag:[
+    {ws:"Payments", status:"red", reason:"Prod throughput 50 TPS < ~80 TPS surge peak; mitigation unsigned"},
+    {ws:"Ops/Launch", status:"red", reason:"Rollback triggers undefined; go/no-go was unconfirmed"},
+    {ws:"QA", status:"amber", reason:"Staging contention 3rd week; owner now assigned"},
+    {ws:"Data/Reporting", status:"amber", reason:"Late start; Payments→Reporting data contract undocumented"},
+    {ws:"Identity/KYC", status:"green", reason:"Contract signed; sandbox access restored"},
+    {ws:"Maps SDK", status:"green", reason:"v3 upgrade merged & closed"}
+  ],
+  radar:[
+    {id:"R1",priority:"P1",workstream:"Payments",type:"RISK",state:"Materialized · Recurring 3× · Resolved",
+     severity:"P1",likelihood:"High",third_party:true,launch:true,owner:"M.Yusuf / Procurement",
+     trigger:"KYC vendor renewal is stuck in legal … we lose sandbox access",
+     so_what:"A vendor-contract risk flagged 16 Apr became a hard blocker on 4 May and stalled the payout integration for ~2 weeks before resolving 8 May.",
+     action:"Resolved — add a contract-renewal calendar alert (60-day lead) so a lapse never silently recurs.",
+     confidence:"High",sources:["U003","U011","U014","U015","U018"]},
+    {id:"R2",priority:"P1",workstream:"Payments",type:"RISK",state:"Open",
+     severity:"P1",likelihood:"High",third_party:true,launch:true,owner:"A.Khan",
+     trigger:"production rate limits confirmed at 50 TPS, below our peak of about 80 TPS at surge",
+     so_what:"The provider cannot sustain surge throughput → payout failures and SLA breach at launch.",
+     action:"Approve the queueing + backoff mitigation; get a higher prod limit from the vendor in writing before go-live.",
+     confidence:"High",sources:["U005","U006","U028","U030"]},
+    {id:"R3",priority:"P1",workstream:"Ops/Launch",type:"RISK",state:"Open",
+     severity:"P1",likelihood:"High",third_party:false,launch:true,owner:"S.Idris",
+     trigger:"no rollback triggers defined for payout failures",
+     so_what:"A go-live gate is unmet — we cannot safely launch payouts without defined rollback behaviour.",
+     action:"Define rollback triggers and a rollback plan before the 22 Jun UAE gate.",
+     confidence:"High",sources:["U027","U016","U032"]},
+    {id:"R4",priority:"P2",workstream:"QA",type:"BLOCKER",state:"Recurring 3× · Escalating",
+     severity:"P2",likelihood:"-",third_party:false,launch:true,owner:"Platform (assigned, ETA ~1wk)",
+     trigger:"test env still intermittently failing … 3rd week running",
+     so_what:"Blocks the E2E sign-off required for go-live; root cause is shared staging DB contention.",
+     action:"Track the Platform fix to closure and protect the E2E sign-off date.",
+     confidence:"High",sources:["U007","U017","U022","U025","U031"]},
+    {id:"R5",priority:"P2",workstream:"Payments",type:"DEPENDENCY",state:"Resolved",
+     severity:"P2",likelihood:"-",third_party:true,launch:true,owner:"A.Khan",
+     trigger:"settlement API migration … old endpoints will be deprecated",
+     so_what:"A vendor-imposed migration forced rework on a hard deprecation deadline.",
+     action:"Repointed 18 May, smoke tests pass — verify in production before go-live.",
+     confidence:"Med",sources:["U010","U019","U024"]},
+    {id:"R6",priority:"P2",workstream:"KSA Launch (Phase 2)",type:"RISK",state:"Open",
+     severity:"P2",likelihood:"Med",third_party:false,launch:true,owner:"S.Idris",
+     trigger:"KSA compliance review may take 4-6 weeks; UAE unaffected",
+     so_what:"A long pole for Phase 2 that will land on the critical path if started late.",
+     action:"Kick off the KSA compliance review now, in parallel with the UAE launch.",
+     confidence:"Med",sources:["U023"]},
+    {id:"R7",priority:"P3",workstream:"Data/Reporting",type:"DEPENDENCY",state:"Open",
+     severity:"P3",likelihood:"Low",third_party:false,launch:false,owner:"Unassigned",
+     trigger:"analyst allocated elsewhere … data contract … is undocumented",
+     so_what:"Reporting started late and the Payments→Reporting data contract is undocumented, risking broken dashboards post-launch.",
+     action:"Document the Payments→Reporting data contract and confirm reporting ownership.",
+     confidence:"Low",sources:["U013","U026"]}
+  ],
+  digest:[
+    "Two launch-blocking P1s are open: the payments provider's prod throughput (50 TPS vs ~80 TPS at surge) and undefined rollback triggers — both required for the 22 Jun UAE gate.",
+    "The KYC risk flagged 16 Apr materialized into a hard blocker on 4 May before resolving 8 May — a ~2-week stall; renewal alerts would prevent a repeat.",
+    "QA staging instability is in its 3rd week but finally has a Platform owner (ETA ~1 week); protect the E2E sign-off date.",
+    "Third-party exposure is the dominant theme — the provider rate limits, the settlement-API migration and the KYC vendor drove the top items.",
+    "Decision needed this week: approve the queueing/backoff TPS mitigation and confirm the UAE go/no-go date."
+  ]
+};
+
+const LIVE_PROMPT = `You are "Risk Radar", an analyst for a Program Manager. You read a programme's raw update stream and surface RISKS, DEPENDENCIES and BLOCKERS before they hit a milestone or launch gate.
+Return ONLY a JSON object (no markdown fences, no prose) with EXACTLY this shape:
+{
+ "decisions": <integer: how many items need a decision this week>,
+ "rag":[{"ws":"<workstream>","status":"red|amber|green","reason":"<one short line>"}],
+ "radar":[{
+   "id":"R1","priority":"P1|P2|P3","workstream":"<name>","type":"RISK|BLOCKER|DEPENDENCY|DECISION-NEEDED",
+   "state":"<Open | Resolved | Recurring Nx | Materialized | Escalating, combine with · if several>",
+   "severity":"P1|P2|P3","likelihood":"High|Med|Low|-","third_party":true|false,"launch":true|false,
+   "owner":"<name only if explicitly stated, else Unassigned>",
+   "trigger":"<exact verbatim quote, <=15 words>","so_what":"<one line on why it matters>",
+   "action":"<single best next step>","confidence":"High|Med|Low","sources":["U001"]
+ }],
+ "digest":["<bullet>", "... up to 5 bullets"]
+}
+Rules: P1=threatens launch, P2=significant, P3=minor. Exclude STATUS/NOISE updates from "radar" but still use them to infer "rag". Rank radar P1 first. Collapse the same underlying issue across updates into ONE item (state "Recurring Nx"); if a prior RISK became a BLOCKER mark state "Materialized"; if later fixed add "Resolved". Never invent owners or dates. Quote triggers verbatim. "launch"=affects go-live, an SLA, a rollback or a hard date. "third_party"=involves an external vendor/partner/API.
+UPDATES (JSON):
+`;
+
+/* ============================ STATE ============================ */
+let CURRENT = SAMPLE;
+let filterPri = "ALL", filterType = "ALL", query = "";
+
+/* ============================ HELPERS ============================ */
+const $ = s => document.querySelector(s);
+const el = (t,c,h)=>{const e=document.createElement(t); if(c)e.className=c; if(h!=null)e.innerHTML=h; return e;};
+const esc = s => String(s).replace(/[&<>"]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]));
+function toast(msg,kind){const t=$("#toast"); t.className="toast show "+(kind||""); t.textContent=msg; clearTimeout(t._t); t._t=setTimeout(()=>t.className="toast",3400);}
+const reduce = matchMedia("(prefers-reduced-motion:reduce)").matches;
+
+/* ============================ RENDER ============================ */
+function renderRAG(d){
+  const r=$("#rag"); r.innerHTML="";
+  d.rag.forEach(x=>{
+    const c=el("div","chip");
+    c.innerHTML=`<span class="dot ${x.status}"></span><span class="ws">${esc(x.ws)}</span><span class="rs">${esc(x.reason)}</span>`;
+    r.appendChild(c);
+  });
+}
+function tagsFor(it){
+  let t=`<span class="tag type">${esc(it.type)}</span>`;
+  if(it.state) t+=`<span class="tag state">${esc(it.state)}</span>`;
+  if(it.third_party) t+=`<span class="tag tp">3rd-party</span>`;
+  if(it.launch) t+=`<span class="tag go">go-live</span>`;
+  return t;
+}
+function rowNode(it){
+  const row=el("div",`row ${it.priority.toLowerCase()} hide`);
+  row.dataset.pri=it.priority; row.dataset.type=it.type;
+  row.dataset.blob=(it.workstream+" "+it.type+" "+it.trigger+" "+it.action).toLowerCase();
+  const head=el("div","rhead");
+  head.innerHTML=`
+    <div class="pri">${esc(it.priority)}</div>
+    <div class="mid">
+      <div class="top"><span class="ws">${esc(it.workstream)}</span>${tagsFor(it)}</div>
+      <div class="trig">▸ <span class="q">"${esc(it.trigger)}"</span></div>
+    </div>
+    <div class="sev">
+      <span class="s">${esc(it.severity)} · ${esc(it.likelihood)}</span>
+      <span class="c">conf ${esc(it.confidence)}</span>
+      <span class="chev">▸</span>
+    </div>`;
+  const body=el("div","rbody");
+  const srcs=(it.sources||[]).map(id=>`<span class="src" data-id="${esc(id)}">${esc(id)}</span>`).join("");
+  body.innerHTML=`
+    <div class="kv">
+      <div class="k">So what</div><div class="v">${esc(it.so_what)}</div>
+      <div class="k">Action</div><div class="v">${esc(it.action)}</div>
+      <div class="k">Owner</div><div class="v">${esc(it.owner)}</div>
+      <div class="k">From</div><div class="v"><span class="srcs">${srcs}</span></div>
+    </div>`;
+  head.addEventListener("click",()=>row.classList.toggle("open"));
+  body.querySelectorAll(".src").forEach(s=>s.addEventListener("click",()=>highlightUpdate(s.dataset.id)));
+  row.appendChild(head); row.appendChild(body);
+  return row;
+}
+function applyFilters(){
+  const rows=[...document.querySelectorAll("#radar .row")];
+  rows.forEach(r=>{
+    const okP = filterPri==="ALL" || r.dataset.pri===filterPri;
+    const okT = filterType==="ALL" || r.dataset.type===filterType;
+    const okQ = !query || r.dataset.blob.includes(query);
+    r.style.display = (okP&&okT&&okQ) ? "" : "none";
+  });
+}
+function renderRadar(d,animate){
+  const wrap=$("#radar"); wrap.innerHTML="";
+  const nodes=d.radar.map(it=>{const n=rowNode(it); wrap.appendChild(n); return n;});
+  applyFilters();
+  if(animate && !reduce){
+    runScanline();
+    nodes.forEach((n,i)=>setTimeout(()=>n.classList.remove("hide"), 240+i*150));
+  } else {
+    nodes.forEach(n=>n.classList.remove("hide"));
+  }
+}
+function renderDigest(d){
+  const u=$("#digest"); u.innerHTML="";
+  d.digest.forEach((t,i)=>{
+    const li=el("li"); li.innerHTML=`<span class="num">${String(i+1).padStart(2,"0")}</span><span class="tx">${esc(t)}</span>`;
+    u.appendChild(li);
+  });
+}
+function renderKPIs(d,animate){
+  const c={P1:0,P2:0,P3:0}; d.radar.forEach(it=>c[it.priority]++);
+  const flag=d.radar.length, dec=d.decisions||0;
+  const set=(id,to)=>{
+    const node=$(id);
+    if(!animate||reduce){node.textContent=to; return;}
+    let n=0; const step=Math.max(1,Math.round(to/12));
+    const iv=setInterval(()=>{n+=step; if(n>=to){n=to; clearInterval(iv);} node.textContent=n;},45);
+  };
+  set("#kP1",c.P1); set("#kP2",c.P2); set("#kP3",c.P3); set("#kFlag",flag); set("#kDec",dec);
+}
+function renderUpdates(){
+  const u=$("#updates"); u.innerHTML="";
+  UPDATES.forEach(x=>{
+    const row=el("div","upd"); row.id="upd-"+x.update_id;
+    row.innerHTML=`<span class="id">${esc(x.update_id)}</span><span class="dt">${esc(x.date)}</span><span class="sr">${esc(x.source)}</span><span class="tx">${esc(x.text)}</span>`;
+    u.appendChild(row);
+  });
+  $("#drCount").textContent=UPDATES.length;
+  $("#updCount").textContent=UPDATES.length;
+}
+function highlightUpdate(id){
+  $("#drawer").open=true;
+  document.querySelectorAll(".upd.hl").forEach(n=>n.classList.remove("hl"));
+  const n=$("#upd-"+id);
+  if(n){n.classList.add("hl"); n.scrollIntoView({block:"center",behavior:reduce?"auto":"smooth"});}
+}
+function runScanline(){
+  const sl=$("#scanline"), area=$("#scan");
+  const h=area.offsetHeight;
+  sl.style.opacity="1"; sl.style.transition="none"; sl.style.top="0px";
+  requestAnimationFrame(()=>{
+    sl.style.transition="top 1.1s linear, opacity .3s ease .9s";
+    sl.style.top=h+"px"; sl.style.opacity="0";
+  });
+}
+function renderAll(d,animate){
+  $("#progName").textContent=d.programme;
+  $("#sweptAt").textContent=d.swept_at||"just now";
+  renderKPIs(d,animate); renderRAG(d); renderRadar(d,animate); renderDigest(d);
+}
+
+/* ============================ LIVE (Gemini) ============================ */
+async function runLive(){
+  const key=$("#apiKey").value.trim();
+  const model=$("#model").value;
+  if(!key){toast("Enter a Gemini API key first","err"); return;}
+  closePop();
+  $("#sweep").disabled=true; toast("Running live analysis…");
+  try{
+    const prompt=LIVE_PROMPT+JSON.stringify(UPDATES);
+    const url=`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`;
+    const res=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({contents:[{parts:[{text:prompt}]}],
+        generationConfig:{temperature:0.2,response_mime_type:"application/json"}})});
+    if(!res.ok){const e=await res.text(); throw new Error("HTTP "+res.status+" — "+e.slice(0,140));}
+    const data=await res.json();
+    const txt=data.candidates?.[0]?.content?.parts?.[0]?.text||"";
+    const parsed=JSON.parse(txt.replace(/```json|```/g,"").trim());
+    CURRENT={programme:SAMPLE.programme, swept_at:new Date().toLocaleString(),
+      decisions:parsed.decisions??0, rag:parsed.rag||[], radar:parsed.radar||[], digest:parsed.digest||[]};
+    $("#modeBadge").classList.add("live"); $("#modeText").textContent="live · "+model;
+    renderAll(CURRENT,true);
+    toast("Live analysis complete — "+(CURRENT.radar.length)+" signals","ok");
+  }catch(err){
+    toast("Live call failed: "+err.message,"err");
+  }finally{ $("#sweep").disabled=false; }
+}
+
+/* ============================ EVENTS ============================ */
+function closePop(){$("#pop").classList.remove("show");}
+$("#gear").addEventListener("click",()=>$("#pop").classList.add("show"));
+$("#closePop").addEventListener("click",closePop);
+$("#pop").addEventListener("click",e=>{if(e.target.id==="pop")closePop();});
+$("#runLive").addEventListener("click",runLive);
+$("#sweep").addEventListener("click",()=>renderAll(CURRENT,true));
+
+$("#segPri").addEventListener("click",e=>{const b=e.target.closest("button"); if(!b)return;
+  filterPri=b.dataset.f; [...e.currentTarget.children].forEach(x=>x.classList.toggle("on",x===b)); applyFilters();});
+$("#segType").addEventListener("click",e=>{const b=e.target.closest("button"); if(!b)return;
+  filterType=b.dataset.t; [...e.currentTarget.children].forEach(x=>x.classList.toggle("on",x===b)); applyFilters();});
+$("#q").addEventListener("input",e=>{query=e.target.value.toLowerCase().trim(); applyFilters();});
+$("#kpis").addEventListener("click",e=>{const k=e.target.closest(".kpi"); if(!k)return;
+  const f=k.dataset.f; filterPri=f;
+  [...$("#segPri").children].forEach(x=>x.classList.toggle("on",x.dataset.f===f));
+  [...$("#kpis").children].forEach(x=>x.classList.toggle("active", x===k && f!=="ALL"));
+  applyFilters(); $("#scan").scrollIntoView({behavior:reduce?"auto":"smooth",block:"start"});});
+
+$("#copyJson").addEventListener("click",()=>{
+  navigator.clipboard?.writeText(JSON.stringify(CURRENT,null,2)).then(()=>toast("JSON copied","ok"),()=>toast("Copy blocked by browser","err"));
+});
+$("#dlJson").addEventListener("click",()=>{
+  const blob=new Blob([JSON.stringify(CURRENT,null,2)],{type:"application/json"});
+  const a=el("a"); a.href=URL.createObjectURL(blob); a.download="risk_radar_output.json"; a.click();
+});
+
+/* ============================ BOOT ============================ */
+renderUpdates();
+renderAll(SAMPLE,true);
+</script>
+</body>
+</html>
